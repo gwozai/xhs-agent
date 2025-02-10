@@ -36,7 +36,9 @@
 pip install -r requirements.txt
 ```
 
-2. 运行
+2. 修改 `.env` 环境变量
+
+3. 运行
 
 ```bash
 python app.py
@@ -57,3 +59,4 @@ python app.py
 ## 联系
 
 - 邮箱: abigeater@163.com
+
