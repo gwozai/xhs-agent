@@ -1,11 +1,14 @@
 from openai import OpenAI
-
+from dotenv import load_dotenv
+import os
 class AI:
 
     def __init__(self):
+        load_dotenv(verbose=True)
+
         self.client = OpenAI(
-            base_url = "",
-            api_key  = ""
+            base_url = os.getenv("AI_BASE_URL"),
+            api_key  = os.getenv("AI_API_KEY")
         )
     
     def chat(self, detail):
@@ -45,7 +48,7 @@ class AI:
         ]
 
         completion = self.client.chat.completions.create(
-            model = "gemini-1.5-flash", # "moonshot-v1-8k",
+            model = os.getenv("AI_MODEL"),
             messages=messages,
             temperature = 0.3,
             response_format = { "type": "json_object" },
