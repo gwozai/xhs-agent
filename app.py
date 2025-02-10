@@ -10,13 +10,21 @@ from ai import AI
 import requests
 from PIL import Image
 import base64
+import signal
+import sys
 
 class App:
     def __init__(self):
         self.currentPosts  = []
         self.currentPost = None
-        self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3'
+        self.actionDo = True #是否真实操作 还是模拟测试
+        self.doVideoNote = True #视频笔记是否操作
+
+        self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
+        # self.mainPage = 'https://www.xiaohongshu.com/search_result?keyword=&source=web_search_result_notes' #搜索页面
+
         self.ai = AI()
+        self.session = requests.session()
 
         stealth_path = "stealth.min.js"
         with open(stealth_path) as f:
@@ -41,8 +49,10 @@ class App:
         self.storage = LocalStorage(self.driver)
 
     def run(self):
-        time.sleep(3)
+        time.sleep(5)
+        print("开始从缓存获取数据")
         if not self.getSession():
+            print("已调用完毕自动登录，如果长时间没动静，请手动登录或重新运行程序...")
             self.login()
             self.saveSession()
         print("登录完成，即将开始执行任务")
@@ -53,22 +63,30 @@ class App:
                 if run or True: #如果要控制翻页，则把run改成False
                     posts = self.findPostList()
                     for post in posts:
+                        id = self.getCurrentPostId(post)
+                        if id and self.isHistoryNote(id):
+                            print("本篇笔记已操作过，跳过")
+                            continue
+                        else:
+                            print("本篇笔记未操作过，开始操作")
                         postEl = self.clickPostDetail(post)
                         if postEl:
                             print("开始操作内容")
                             if not postEl.is_displayed():
                                 print("元素丢失")
                                 continue
+                            
                             print("获取内容详情")
                             postDetail = self.getCurrentPostDetail(postEl)
-                            print(postDetail)
+                            # print(postDetail)
                             try: 
                                 ai_result = self.ai.chat(postDetail)
                             except Exception as e: 
                                 print("AI请求异常: %s" % e)
                                 time.sleep(10)
                                 continue
-                            print(ai_result)
+                            print("AI返回结果: %s" % ai_result)
+                            self.saveHistoryNote({"id":id, "ai_result": ai_result})
                             ai_result = json.loads(ai_result)
                             if ai_result['status'] == 'success': # input("是否操作本篇笔记？(y): "):
                                 if ai_result['is_like']: # input("是否点赞本篇笔记？(y/n): ") == "y":
@@ -85,6 +103,7 @@ class App:
                                         time.sleep(2)
                                 print("本篇笔记已操作完成")
                                 self.driver.back()
+                                time.sleep(3)
                             else:
                                 if self.driver.current_url != self.mainPage:
                                     self.driver.back()
@@ -94,7 +113,8 @@ class App:
                             # return last page
                         else:
                             print("没有展开笔记详情，稍后重试")
-                        time.sleep(3)
+                        
+                        time.sleep(0.01)
 
             except Exception as e:
                 print("发生异常: %s" % e)
@@ -103,15 +123,24 @@ class App:
                 print("本轮任务结束，等待5秒后刷新")
                 run = False
                 time.sleep(5)
-                if self.driver.current_url != self.mainPage:
+                print("当前页面url: %s" % self.driver.current_url)
+                if self.driver.current_url.find(self.mainPage) == -1: 
                     self.driver.get(self.mainPage)
                 else:
-                    reloadEl = self.driver.find_elements(By.CLASS_NAME, "reload")
-                    if reloadEl:
-                        reloadEl = reloadEl[0]
-                        reloadEl.click()    
+                    if self.driver.current_url.find("search_result") != -1: # search result
+                        # 往下拉到底部加载更多
+                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        print("至底部等待5秒加载完毕")
+                        time.sleep(5) #等5秒加载完毕
                     else:
-                        self.driver.refresh()
+                        reloadEl = self.driver.find_elements(By.CLASS_NAME, "reload")
+                        if reloadEl:
+                            reloadEl = reloadEl[0]
+                            reloadEl.click()    
+                        else:
+                            self.driver.refresh()
+                   
+                        
                         
     def getSession(self):
         if os.path.isfile("cookie"):
@@ -145,6 +174,10 @@ class App:
 
     def saveSession(self):
         cookies = self.driver.get_cookies()
+        for cookie in cookies:
+            self.session.cookies[cookie['name']] = cookie['value']
+        self.session.headers['User-Agent'] = self.driver.execute_script("return navigator.userAgent")
+
         with open("cookie", "w") as f: 
             f.write(json.dumps(cookies))
 
@@ -155,20 +188,41 @@ class App:
         return True
 
     def findPostList(self):
-        postContainer = self.driver.find_elements(By.ID, "exploreFeeds")
+        if self.driver.current_url.find("explore?channel_id") != -1:
+            print("发现页面的列表")
+            postContainer = self.driver.find_elements(By.ID, "exploreFeeds")
+        if self.driver.current_url.find("search_result") != -1:
+            print("搜索页面的列表")
+            postContainer = self.driver.find_elements(By.CLASS_NAME, "feeds-container")
         if not postContainer:
             print("未找到帖子列表")
             return []
         posts = postContainer[0].find_elements(By.CLASS_NAME, "note-item")
         print("找到帖子列表, 数量: %d" % len(posts))
         self.currentPosts = posts
-        return posts
+        newPosts = []
+        for post in posts:
+            id = self.getCurrentPostId(post)
+            if id and not self.isHistoryNote(id):
+                newPosts.append(post)
+        return newPosts
+
+    def getCurrentPostId(self, post):
+        id = post.find_elements(By.TAG_NAME, "a")
+        print(id)
+        if id:
+            id = id[0].get_attribute("href")
+            return id.split("/")[-1]
+        else:
+            print("未找到帖子id")
+            return None
 
     def clickPostDetail(self, post):
-        print(post)
+        # print(post)
         is_video = post.find_elements(By.CLASS_NAME, "play-icon")
-        if is_video:
+        if self.doVideoNote == False and is_video:
             print("下一个操作笔记是视频，即将跳过")
+            time.sleep(1)
             return None
         post.click()
         time.sleep(3)
@@ -220,6 +274,12 @@ class App:
             except Exception as e:
                 print("媒体获取发生异常: %s" % e)
         
+        if not media:
+            ogMetaEL = self.driver.find_elements(By.XPATH, "//meta[@name='og:image']");
+            if ogMetaEL:
+                print("找到帖子媒体, url: %s" % ogMetaEL[0].get_attribute("content"))
+                media.append(ogMetaEL[0].get_attribute("content"))
+
         dataEl = parent_el.find_elements(By.CLASS_NAME, "interact-container")
         if not dataEl:
             print("未找到帖子互动数据")
@@ -306,12 +366,13 @@ class App:
         dataEl = dataEl[0]
         likeEl = dataEl.find_elements(By.CLASS_NAME, "like-active")
         if likeEl:
-            likeEl[0].click()
+            if self.actionDo:
+                likeEl[0].click()
             print("点赞完成")
             return True
         else: 
             print("没有找到点赞按钮")
-        return True
+        return False
     
     def fav(self, postDivEl):
         dataEl = postDivEl.find_elements(By.CLASS_NAME, "interact-container")
@@ -321,12 +382,13 @@ class App:
         dataEl = dataEl[0]
         favEl = dataEl.find_elements(By.CLASS_NAME, "collect-wrapper")
         if favEl:
-            favEl[0].click()
+            if self.actionDo:
+                favEl[0].click()
             print("收藏完成")
             return True
         else: 
             print("没有找到收藏按钮")
-        return True
+        return False
    
     def comment(self, postDivEl, comment):
         dataEl = postDivEl.find_elements(By.CLASS_NAME, "interact-container")
@@ -347,7 +409,8 @@ class App:
                 print("输入评论")
                 time.sleep(3)
                 sendEl = postDivEl.find_element(By.CLASS_NAME, "submit")
-                sendEl.click()
+                if self.actionDo:
+                    sendEl.click()
                 print("发送评论,评论完成")
                 return True
             except Exception as e:
@@ -355,7 +418,7 @@ class App:
                 return False
         else: 
             print("没有找到评论按钮")
-            return False
+        return False
 
     def flushPostList(self):
         #todo
@@ -363,14 +426,14 @@ class App:
 
     def downloadMedia(self, media_url, resize = True):
         if not os.path.isdir('media'):
-            os.path.mkdir('media')
-        file_name = media_url.split('/')[-1]
+            os.mkdir('media')
+        file_name = "%s.webp" % media_url.split('/')[-1]
         media_path = os.path.join('media', file_name)
         if os.path.isfile(media_path):
             print("媒体已存在, 跳过下载")
         else:
             print("开始下载媒体, url: %s" % media_url)
-            response = requests.get(media_url)
+            response = self.session.get(media_url)
             with open(media_path, 'wb') as f:
                 f.write(response.content)
             print("媒体下载完成, 保存路径: %s" % media_path)
@@ -394,5 +457,30 @@ class App:
     def close(self):
         self.driver.close()
 
-app = App()
-app.run()
+    def isHistoryNote(self, id):
+        with open('history.json', 'r') as f:
+            data = json.loads(f.read())
+            for note in data['notes']:
+                if note['id'] == id: 
+                    return True
+        return False
+    
+    def saveHistoryNote(self, info_data):
+        with open('history.json', 'r') as f:
+            data = json.loads(f.read())
+        data['notes'].append(info_data)
+        with open('history.json', 'w') as f:
+            f.write(json.dumps(data))
+
+def sign_handler(signal, frame):
+    print('You pressed Ctrl+C!')
+    app.close()
+    sys.exit(0)
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, sign_handler)
+    app = App()
+    try:
+        app.run()
+    except Exception as e:
+        print("程序退出: %s" % e)

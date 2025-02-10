@@ -26,7 +26,7 @@
 
 ## AI功能
 
-可接入Google Gemini，DeepSeek，OpenAI等AI模型进行操作处理，传递帖子的首图，标题内容，帖子数据，由AI参考而决定是否点赞，收藏，评论以及评论内容。
+可接入Google Gemini，DeepSeek，OpenAI等AI模型进行操作处理，传递帖子的首图，标题内容，帖子数据，由AI参考而决定是否点赞，收藏，评论以及评论内容。请在 `ai.py` 中配置提示词。
 
 ## 使用
 
