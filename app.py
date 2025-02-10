@@ -473,7 +473,7 @@ class App:
             f.write(json.dumps(data))
 
 def sign_handler(signal, frame):
-    print('You pressed Ctrl+C!')
+    print('请再次按下退出操作!')
     app.close()
     sys.exit(0)
 
