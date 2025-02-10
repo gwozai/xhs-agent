@@ -1,11 +1,10 @@
-<h1 style="text-align: center;">
+<h1 align="center">
     小红薯🍠Agent
 </h1>
-<hr>
 <p align="center">
     <img src="/static/logo.jpeg" alt="logo" style="margin: 0 auto;width:200px;">
 </p>
-<p style="text-align: center;">
+<p align="center">
     <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python Version">
     <img src="https://img.shields.io/badge/Selenium-blue" alt="Selenium Version">
     <img src="https://img.shields.io/badge/OpenAI-blue" alt="OpenAI Version">
