@@ -7,6 +7,10 @@ import os
 import json
 from local import LocalStorage
 from ai import AI
+import requests
+from PIL import Image
+import base64
+
 class App:
     def __init__(self):
         self.currentPosts  = []
@@ -50,8 +54,8 @@ class App:
                     posts = self.findPostList()
                     for post in posts:
                         postEl = self.clickPostDetail(post)
-                        print("开始操作内容")
                         if postEl:
+                            print("开始操作内容")
                             if not postEl.is_displayed():
                                 print("元素丢失")
                                 continue
@@ -59,7 +63,7 @@ class App:
                             postDetail = self.getCurrentPostDetail(postEl)
                             print(postDetail)
                             try: 
-                                ai_result = self.ai.chat(json.dumps(postDetail))
+                                ai_result = self.ai.chat(postDetail)
                             except Exception as e: 
                                 print("AI请求异常: %s" % e)
                                 time.sleep(10)
@@ -86,11 +90,11 @@ class App:
                                     self.driver.back()
                                 print("本篇笔记已跳过")
 
-                            time.sleep(3)
+                            # time.sleep(3)
                             # return last page
                         else:
                             print("没有展开笔记详情，稍后重试")
-                            time.sleep(5)
+                        time.sleep(3)
 
             except Exception as e:
                 print("发生异常: %s" % e)
@@ -162,6 +166,10 @@ class App:
 
     def clickPostDetail(self, post):
         print(post)
+        is_video = post.find_elements(By.CLASS_NAME, "play-icon")
+        if is_video:
+            print("下一个操作笔记是视频，即将跳过")
+            return None
         post.click()
         time.sleep(3)
         currentUrl = self.driver.current_url
@@ -246,17 +254,33 @@ class App:
                 com_total_text = com_total[0].text
                 print("找到评论总数, total: %s" % com_total_text)
 
-        
-        return {
-            "title": title,
-            "author": author,
-            "content": content,
-            # "media": media,
-            "like_count": like_total_text,
-            "fav_count": fav_total_text,
-            "comment_count": com_total_text,
-            "channel": "彩妆"
-        }
+        media_path = ""
+        if media:
+            media_path = self.downloadMedia(media[0])
+            with open(media_path, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+        return [
+            {
+                'type': "image_url",
+                "image_url": {
+                    "url": f"data:image/webp;base64,{base64_image}"
+                }
+            },
+            {
+                "type": "text",
+                "text": json.dumps({
+                    "title": title,
+                    "author": author,
+                    "content": content,
+                    # "media": media,
+                    "like_count": like_total_text,
+                    "fav_count": fav_total_text,
+                    "comment_count": com_total_text,
+                    "channel": "彩妆"
+                })
+            }
+        ]
 
     def readPostDetail(self, id):
         post = None
@@ -336,6 +360,36 @@ class App:
     def flushPostList(self):
         #todo
         return True
+
+    def downloadMedia(self, media_url, resize = True):
+        if not os.path.isdir('media'):
+            os.path.mkdir('media')
+        file_name = media_url.split('/')[-1]
+        media_path = os.path.join('media', file_name)
+        if os.path.isfile(media_path):
+            print("媒体已存在, 跳过下载")
+        else:
+            print("开始下载媒体, url: %s" % media_url)
+            response = requests.get(media_url)
+            with open(media_path, 'wb') as f:
+                f.write(response.content)
+            print("媒体下载完成, 保存路径: %s" % media_path)
+
+        if not os.path.isfile(media_path):
+            print("媒体下载失败")
+            return None
+        if resize:
+            resize_path = self._resizeMedia(media_path)
+            if resize_path:
+                return resize_path
+            else:
+                print("媒体缩放失败，用原图")            
+        return media_path
+
+    def _resizeMedia(self, media_path):
+        image = Image.open(media_path)
+        image.save("%s.new.webp" % media_path)
+        return "%s.new.webp" % media_path
 
     def close(self):
         self.driver.close()
