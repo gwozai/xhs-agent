@@ -12,6 +12,7 @@ from PIL import Image
 import base64
 import signal
 import sys
+import random
 
 class App:
     def __init__(self):
@@ -60,7 +61,7 @@ class App:
         run = True
         while True:
             try:
-                time.sleep(3)
+                time.sleep(random.randint(3, 10)) #单篇笔记操作间隔
                 if run or True: #如果要控制翻页，则把run改成False
                     posts = self.findPostList()
                     for post in posts:
