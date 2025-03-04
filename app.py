@@ -20,7 +20,8 @@ class App:
         self.actionDo = True #是否真实操作 还是模拟测试
         self.doVideoNote = True #视频笔记是否操作
 
-        self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
+        self.mainPage = 'https://www.xiaohongshu.com/explore'
+        # self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
         # self.mainPage = 'https://www.xiaohongshu.com/search_result?keyword=&source=web_search_result_notes' #搜索页面
 
         self.ai = AI()
@@ -52,7 +53,7 @@ class App:
         time.sleep(5)
         print("开始从缓存获取数据")
         if not self.getSession():
-            print("已调用完毕自动登录，如果长时间没动静，请手动登录或重新运行程序...")
+            print("已调用完毕自动登录，如果长时间没动静，请手动刷新页面，还没有登录状态则手动登录或重新运行程序...")
             self.login()
             self.saveSession()
         print("登录完成，即将开始执行任务")
@@ -188,7 +189,8 @@ class App:
         return True
 
     def findPostList(self):
-        if self.driver.current_url.find("explore?channel_id") != -1:
+        postContainer = None
+        if self.driver.current_url.find("explore") != -1:
             print("发现页面的列表")
             postContainer = self.driver.find_elements(By.ID, "exploreFeeds")
         if self.driver.current_url.find("search_result") != -1:
@@ -209,7 +211,7 @@ class App:
 
     def getCurrentPostId(self, post):
         id = post.find_elements(By.TAG_NAME, "a")
-        print(id)
+        # print(id)
         if id:
             id = id[0].get_attribute("href")
             return id.split("/")[-1]
