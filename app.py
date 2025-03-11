@@ -21,8 +21,8 @@ class App:
         self.actionDo = True #是否真实操作 还是模拟测试
         self.doVideoNote = True #视频笔记是否操作
 
-        self.mainPage = 'https://www.xiaohongshu.com/explore'
-        # self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
+        # self.mainPage = 'https://www.xiaohongshu.com/explore'
+        self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
         # self.mainPage = 'https://www.xiaohongshu.com/search_result?keyword=&source=web_search_result_notes' #搜索页面
 
         self.ai = AI()
@@ -160,8 +160,8 @@ class App:
                     json_storage = json.loads(localstorage)
                     for k in json_storage:
                         self.driver.execute_script("localStorage.setItem('%s', '%s')" % (k, json_storage[k]))
-
-        # self.driver.refresh()
+        time.sleep(3)
+        self.driver.refresh()
         return False
 
     def login(self):
