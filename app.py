@@ -20,11 +20,11 @@ class App:
         self.currentPost = None
         self.actionDo = True #是否真实操作 还是模拟测试
         self.doVideoNote = True #视频笔记是否操作
-
-        # self.mainPage = 'https://www.xiaohongshu.com/explore'
-        self.mainPage = 'https://www.xiaohongshu.com/explore?channel_id=homefeed.cosmetics_v3' #发现频道
-        # self.mainPage = 'https://www.xiaohongshu.com/search_result?keyword=&source=web_search_result_notes' #搜索页面
-
+        self.runPage = [
+            'https://www.xiaohongshu.com/explore',  
+        ]
+        self.pageRunTime = 10 #每个页面运行次数
+       
         self.ai = AI()
         self.session = requests.session()
 
@@ -47,7 +47,7 @@ class App:
         #     'domain': ".xiaohongshu.com",
         #     'path': "/"
         # })
-        self.driver.get(self.mainPage)
+        self.driver.get('https://www.xiaohongshu.com/explore')
         self.storage = LocalStorage(self.driver)
 
     def run(self):
@@ -57,92 +57,101 @@ class App:
             print("已调用完毕自动登录，如果长时间没动静，请手动刷新页面，还没有登录状态则手动登录或重新运行程序...")
             self.login()
             self.saveSession()
+
         print("登录完成，即将开始执行任务")
         run = True
         while True:
-            try:
-                time.sleep(random.randint(3, 10)) #单篇笔记操作间隔
-                if run or True: #如果要控制翻页，则把run改成False
-                    posts = self.findPostList()
-                    for post in posts:
-                        id = self.getCurrentPostId(post)
-                        if id and self.isHistoryNote(id):
-                            print("本篇笔记已操作过，跳过")
-                            continue
-                        else:
-                            print("本篇笔记未操作过，开始操作")
-                        postEl = self.clickPostDetail(post)
-                        if postEl:
-                            print("开始操作内容")
-                            if not postEl.is_displayed():
-                                print("元素丢失")
-                                continue
-                            
-                            print("获取内容详情")
-                            postDetail = self.getCurrentPostDetail(postEl)
-                            # print(postDetail)
-                            try: 
-                                ai_result = self.ai.chat(postDetail)
-                            except Exception as e: 
-                                print("AI请求异常: %s" % e)
-                                time.sleep(10)
-                                continue
-                            print("AI返回结果: %s" % ai_result)
-                            self.saveHistoryNote({"id":id, "ai_result": ai_result})
-                            ai_result = json.loads(ai_result)
-                            if ai_result['status'] == 'success': # input("是否操作本篇笔记？(y): "):
-                                if ai_result['is_like']: # input("是否点赞本篇笔记？(y/n): ") == "y":
-                                    self.like(postEl)
-                                    time.sleep(2)
-                                if ai_result['is_fav']: # input("是否收藏本篇笔记？(y/n): ") == 'y':
-                                    self.fav(postEl)
-                                    time.sleep(2)
-                                if ai_result['is_comment']:
-                                    comment = ai_result['comment']
-                                    # comment = input("请输入评论内容：")
-                                    if comment:
-                                        self.comment(postEl, comment)
-                                        time.sleep(2)
-                                print("本篇笔记已操作完成")
-                                self.driver.back()
-                                time.sleep(3)
-                            else:
-                                if self.driver.current_url != self.mainPage:
-                                    self.driver.back()
-                                print("本篇笔记已跳过")
-
-                            # time.sleep(3)
-                            # return last page
-                        else:
-                            print("没有展开笔记详情，稍后重试")
-                        
-                        time.sleep(0.01)
-
-            except Exception as e:
-                print("发生异常: %s" % e)
-                print(e.__traceback__)
-            finally:
-                print("本轮任务结束，等待5秒后刷新")
-                run = False
+            for page in self.runPage:
+                self.driver.get(page)
                 time.sleep(5)
-                print("当前页面url: %s" % self.driver.current_url)
-                if self.driver.current_url.find(self.mainPage) == -1: 
-                    self.driver.get(self.mainPage)
-                else:
-                    if self.driver.current_url.find("search_result") != -1: # search result
-                        # 往下拉到底部加载更多
-                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                        print("至底部等待5秒加载完毕")
-                        time.sleep(5) #等5秒加载完毕
-                    else:
-                        reloadEl = self.driver.find_elements(By.CLASS_NAME, "reload")
-                        if reloadEl:
-                            reloadEl = reloadEl[0]
-                            reloadEl.click()    
+                for i in range(self.pageRunTime):
+                    print("开始第%s次操作: %s" % (i+1, page))
+                    try:
+                        time.sleep(random.randint(3, 10)) #单篇笔记操作间隔
+                        if run or True: #如果要控制翻页，则把run改成False
+                            posts = self.findPostList()
+                            for post in posts:
+                                id = self.getCurrentPostId(post)
+                                if id and self.isHistoryNote(id):
+                                    print("本篇笔记已操作过，跳过")
+                                    continue
+                                else:
+                                    print("本篇笔记未操作过，开始操作")
+                                postEl = self.clickPostDetail(post)
+                                if postEl:
+                                    print("开始操作内容")
+                                    if not postEl.is_displayed():
+                                        print("元素丢失")
+                                        continue
+                                    
+                                    print("获取内容详情")
+                                    postDetail = self.getCurrentPostDetail(postEl)
+                                    # print(postDetail)
+                                    try: 
+                                        ai_result = self.ai.chat(postDetail)
+                                    except Exception as e: 
+                                        print("AI请求异常: %s" % e)
+                                        time.sleep(10)
+                                        continue
+                                    print("AI返回结果: %s" % ai_result)
+                                    self.saveHistoryNote({"id":id, "ai_result": ai_result})
+                                    ai_result = json.loads(ai_result)
+                                    if ai_result['status'] == 'success': # input("是否操作本篇笔记？(y): "):
+                                        if ai_result['is_like']: # input("是否点赞本篇笔记？(y/n): ") == "y":
+                                            self.like(postEl)
+                                            time.sleep(2)
+                                        if ai_result['is_fav']: # input("是否收藏本篇笔记？(y/n): ") == 'y':
+                                            self.fav(postEl)
+                                            time.sleep(2)
+                                        if ai_result['is_comment']:
+                                            comment = ai_result['comment']
+                                            # comment = input("请输入评论内容：")
+                                            if comment:
+                                                self.comment(postEl, comment)
+                                                time.sleep(2)
+                                        print("本篇笔记已操作完成")
+                                        self.driver.back()
+                                        time.sleep(3)
+                                    else:
+                                        if self.driver.current_url != page:
+                                            self.driver.back()
+                                        print("本篇笔记已跳过")
+
+                                    # time.sleep(3)
+                                    # return last page
+                                else:
+                                    print("没有展开笔记详情，稍后重试")
+                                
+                                time.sleep(0.01)
+
+                    except Exception as e:
+                        print("发生异常: %s" % e)
+                        print(e.__traceback__)
+                    finally:
+                        print("本轮任务结束，等待5秒后刷新")
+                        run = False
+                        time.sleep(5)
+                        print("当前页面url: %s" % self.driver.current_url)
+                        if self.driver.current_url.find(page) == -1: 
+                            self.driver.get(page)
                         else:
-                            self.driver.refresh()
-                   
-                        
+                            if self.driver.current_url.find("search_result") != -1: # search result
+                                # 往下拉到底部加载更多
+                                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                                print("至底部等待5秒加载完毕")
+                                time.sleep(5) #等5秒加载完毕
+                            else:
+                                try:
+                                    reloadEl = self.driver.find_elements(By.CLASS_NAME, "reload")
+                                    if reloadEl:
+                                        reloadEl = reloadEl[0]
+                                        reloadEl.click()    
+                                    else:
+                                        self.driver.refresh()
+                                except Exception as e:
+                                    print("点击刷新失败，刷新页面，%s" % e)
+                                    self.driver.refresh()
+                                
                         
     def getSession(self):
         if os.path.isfile("cookie"):
