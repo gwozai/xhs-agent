@@ -205,6 +205,30 @@ class App:
             postContainer = self.driver.find_elements(By.ID, "exploreFeeds")
         if self.driver.current_url.find("search_result") != -1:
             print("搜索页面的列表")
+            filter_el = self.driver.find_elements(By.CLASS_NAME, "filter")
+            if filter_el:
+                filter_el = filter_el[0]
+                try_time = 10
+                while True:
+                    filter_panel_el = filter_el.find_elements(By.CLASS_NAME, "filter-panel")
+                    if filter_panel_el:
+                        filter_tag_el =  filter_panel_el[0].find_elements(By.TAG_NAME, "span")
+                        for el in filter_tag_el:
+                            if el.text == "未看过":
+                                el.click()
+                                time.sleep(1)
+                                filter_el.click()
+                                time.sleep(5) #等待页面重新加载
+                                break
+                        break
+                    else:
+                        filter_el.click()
+                        time.sleep(3)
+                        try_time -= 1
+                        if try_time == 0:
+                            print("未找到筛选面板")
+                            break
+
             postContainer = self.driver.find_elements(By.CLASS_NAME, "feeds-container")
         if not postContainer:
             print("未找到帖子列表")
