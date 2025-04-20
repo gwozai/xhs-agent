@@ -8,10 +8,15 @@ class AI:
     def __init__(self):
         load_dotenv(verbose=True)
 
-        self.client = OpenAI(
-            base_url = os.getenv("AI_BASE_URL"),
-            api_key  = os.getenv("AI_API_KEY")
-        )
+        self.client = None
+
+    def instance(self):
+        if self.client is None:
+            self.client = OpenAI(
+                base_url = os.getenv("AI_BASE_URL"),
+                api_key  = os.getenv("AI_API_KEY")
+            )
+        return self.client
     
     def chat(self, detail, retry=True):
         #自定义人设
@@ -60,7 +65,7 @@ class AI:
         ]
 
         try:
-            completion = self.client.chat.completions.create(
+            completion = self.instance().chat.completions.create(
                 model = os.getenv("AI_MODEL"),
                 messages=messages,
                 temperature = 0.3,
